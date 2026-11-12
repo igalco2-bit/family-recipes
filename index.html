@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ספר המתכונים המשפחתי</title>
+    <!-- פונטים של גוגל -->
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Varela+Round&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        amber: {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            800: '#92400e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Heebo', 'sans-serif'],
+                        heading: ['Varela Round', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #fafaf9;
+            color: #1c1917;
+        }
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        @media print {
+            body > *:not(#viewModal) { display: none !important; }
+            body { background: #fff !important; }
+            #viewModal { position: static !important; display: block !important; background: none !important; backdrop-filter: none !important; padding: 0 !important; overflow: visible !important; }
+            #viewModalContent { max-height: none !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+            .no-print, .video-container { display: none !important; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans">
+
+    <!-- סרגל עליון -->
+    <header class="bg-gradient-to-r from-amber-700 via-amber-600 to-amber-800 text-white shadow-lg py-8 px-4 text-center">
+        <div class="max-w-5xl mx-auto">
+            <h1 class="font-heading text-4xl sm:text-5xl font-bold tracking-tight mb-2">📖 ספר המתכונים המשפחתי</h1>
+            <p class="text-amber-100 text-lg opacity-90">הטעמים, המסורת והחידודים של הבית</p>
+            <nav id="catNav" class="flex flex-wrap justify-center gap-2 mt-5"></nav>
+            <p id="syncStatus" class="text-amber-200 text-xs mt-3 min-h-[1rem]"></p>
+        </div>
+    </header>
+
+    <!-- תוכן מרכזי -->
+    <main class="max-w-6xl w-full mx-auto px-4 pt-8 pb-12 flex-grow">
+        
+        <!-- חיפוש והוספת מתכון: מתחת לכותרת, מחוץ לה -->
+        <div class="max-w-2xl mx-auto mb-8 flex gap-3 items-center">
+            <div class="relative flex-1">
+                <span class="absolute inset-y-0 right-4 flex items-center text-stone-400 text-lg">🔍</span>
+                <input type="text" id="searchInput" placeholder="חיפוש מתכון, רכיב או הערה..."
+                       class="w-full pr-12 pl-4 py-3 bg-white border border-stone-300 rounded-2xl shadow-sm focus:ring-2 focus:ring-amber-500 focus:outline-none transition">
+            </div>
+            <button onclick="openAddModal()"
+                    class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 px-5 rounded-2xl shadow-md transition flex items-center justify-center gap-2 whitespace-nowrap">
+                <span>➕</span> <span class="hidden sm:inline">הוסף מתכון חדש</span><span class="sm:hidden">הוסף</span>
+            </button>
+        </div>
+
+        <!-- רשת מתכונים -->
+        <div id="recipeGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- כרטיסיות מתכון ייטענו כאן -->
+        </div>
+
+    </main>
+    <p class="no-print text-center text-xs text-stone-400 pb-6">גרסה 12.11 – חיפוש והוספה באותה שורה</p>
+
+    <!-- מודאל הוספת / עריכת מתכון -->
+    <div id="recipeModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-backdrop overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 my-8 relative max-h-[90vh] overflow-y-auto border border-stone-100">
+            <button onclick="closeModal()" class="absolute top-4 left-4 text-stone-400 hover:text-stone-700 text-2xl font-bold">✕</button>
+            
+            <h2 id="modalTitle" class="text-2xl font-bold text-amber-800 mb-6 font-heading">הוספת מתכון חדש</h2>
+            
+            <!-- אזור חילוץ אוטומטי מקישור -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+                <label class="block text-amber-900 font-semibold mb-1 text-sm">✨ חילוץ אוטומטי מקישור (Auto-Import)</label>
+                <p class="text-xs text-amber-700 mb-3">הדבק קישור מאתר מתכונים וננסה למלא עבורך את הפרטים אוטומטית</p>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="url" id="importUrl" placeholder="https://www.example.co.il/recipe/..." 
+                           class="flex-1 px-3 py-2 text-sm border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+                    <button type="button" onclick="extractRecipeFromUrl()" id="extractBtn"
+                            class="bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow transition flex items-center justify-center gap-1">
+                        <span>🔍</span> חלץ נתונים
+                    </button>
+                </div>
+                <div id="extractStatus" class="hidden text-xs mt-2 font-medium"></div>
+                <button type="button" onclick="togglePasteBox()" class="text-xs text-amber-800 underline mt-2">האתר חוסם? הדבק את טקסט הכתבה במקום</button>
+                <div id="pasteBox" class="hidden mt-2">
+                    <textarea id="pasteText" rows="4" onpaste="setTimeout(extractFromPastedText, 50)" placeholder="פתחו את הכתבה, סמנו את כל הטקסט, העתיקו והדביקו כאן"
+                              class="w-full px-3 py-2 text-sm border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"></textarea>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" onclick="pasteFromClipboard()" class="mt-2 bg-amber-700 hover:bg-amber-800 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow transition">📋 הדבק מהלוח וחלץ</button>
+                        <button type="button" onclick="extractFromPastedText()" class="mt-2 border border-amber-700 text-amber-800 text-sm font-semibold px-4 py-2 rounded-lg transition">חלץ מהתיבה</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- טופס המתכון -->
+            <form id="recipeForm" onsubmit="saveRecipe(event)" class="space-y-4">
+                <input type="hidden" id="recipeId">
+                
+                <div>
+                    <label class="block font-semibold text-stone-700 mb-1">שם המנה <span class="text-red-500">*</span></label>
+                    <input type="text" id="name" required placeholder="לדוגמה: עוף עם תפוחי אדמה" 
+                           class="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold text-stone-700 mb-1">קטגוריה</label>
+                        <select id="category" class="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
+                            <option value="עיקריות">מנות עיקריות</option>
+                            <option value="תוספות">תוספות</option>
+                            <option value="סלטים">סלטים</option>
+                            <option value="מרקים">מרקים</option>
+                            <option value="מאפים">מאפים ולחמים</option>
+                            <option value="קינוחים">קינוחים ומתוקים</option>
+                            <option value="אחר">אחר</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold text-stone-700 mb-1">קישור לסרטון או לאתר המקור</label>
+                        <input type="url" id="videoUrl" placeholder="https://youtube.com/..." 
+                               class="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-stone-700 mb-1">תמונת המנה (קישור, לא חובה)</label>
+                    <div class="flex items-center gap-3">
+                        <input type="url" id="imageUrl" oninput="updateImagePreview()" placeholder="יתמלא אוטומטית בחילוץ מקישור"
+                               class="flex-1 px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                        <img id="imagePreview" alt="" referrerpolicy="no-referrer" onerror="this.classList.add('hidden')"
+                             class="hidden w-14 h-14 rounded-xl object-cover border border-stone-200">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-stone-700 mb-1">רכיבים</label>
+                    <textarea id="ingredients" rows="4" placeholder="רשום כל רכיב בשורה חדשה..." 
+                              class="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-stone-700 mb-1">הוראות הכנה</label>
+                    <textarea id="instructions" rows="4" placeholder="שלבי ההכנה..." 
+                              class="w-full px-4 py-2.5 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"></textarea>
+                </div>
+
+                <!-- שדה הערות אישיות וחידודים נפרד -->
+                <div class="bg-amber-50/60 p-4 rounded-xl border border-amber-200">
+                    <label class="block font-semibold text-amber-900 mb-1">💡 הערות אישיות וחידוד המתכון</label>
+                    <p class="text-xs text-amber-700 mb-2">טיפים משפחתיים, שינויי תבלינים או חידודים שתרצה לשמור ולהתאים בעתיד</p>
+                    <textarea id="notes" rows="3" placeholder="למשל: עדיף להוסיף 1/2 כפית כמון נוספת, לאפות 5 דקות פחות..." 
+                              class="w-full px-4 py-2.5 border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-stone-100">
+                    <button type="button" onclick="closeModal()" 
+                            class="px-5 py-2.5 border border-stone-300 rounded-xl text-stone-600 hover:bg-stone-50 font-semibold transition">
+                        ביטול
+                    </button>
+                    <button type="submit" 
+                            class="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold shadow transition">
+                        שמור מתכון
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- מודאל הצגת מתכון מלא -->
+    <div id="viewModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-backdrop overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 sm:p-8 my-8 relative max-h-[90vh] overflow-y-auto border border-stone-100" id="viewModalContent">
+            <!-- נתונים יוזרמו דינמית -->
+        </div>
+    </div>
+
+
+    <script>
+        // ניהול המידע: localStorage כמטמון מקומי + סנכרון לשרת (Netlify Blobs) כדי שכל המכשירים יראו אותו דבר
+        const API = '/.netlify/functions/recipes';
+        let recipes = [];
+        try { recipes = JSON.parse(localStorage.getItem('family_recipes')) || []; } catch (e) { recipes = []; }
+        const saveLocal = () => { try { localStorage.setItem('family_recipes', JSON.stringify(recipes)); } catch (e) { } };
+        const getDeleted = () => { try { return JSON.parse(localStorage.getItem('family_recipes_deleted')) || []; } catch (e) { return []; } };
+        const setDeleted = a => { try { localStorage.setItem('family_recipes_deleted', JSON.stringify(a)); } catch (e) { } };
+        const setSyncStatus = t => { const el = document.getElementById('syncStatus'); if (el) el.textContent = t; };
+
+        async function api(method, path = '', body) {
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const res = await fetch(API + path, {
+                    method, cache: 'no-store',
+                    headers: { 'x-family-code': localStorage.getItem('family_code') || '', ...(body ? { 'content-type': 'application/json' } : {}) },
+                    body: body ? JSON.stringify(body) : undefined
+                });
+                if (res.status === 401) {
+                    localStorage.removeItem('family_code');
+                    if (attempt === 0) {
+                        const c = prompt('הכניסו את קוד המשפחה');
+                        if (!c) throw new Error('no code');
+                        localStorage.setItem('family_code', c.trim());
+                        continue;
+                    }
+                }
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res;
+            }
+        }
+
+        let syncing = false, resync = false;
+        async function syncRecipes() {
+            if (syncing) { resync = true; return; }
+            syncing = true;
+            try {
+                setSyncStatus('☁️ מסנכרן...');
+                // 1) מחיקות שממתינות לשרת
+                let del = getDeleted();
+                for (const id of [...del]) {
+                    await api('DELETE', '?id=' + encodeURIComponent(id));
+                    del = del.filter(x => x !== id);
+                    setDeleted(del);
+                }
+                // 2) משיכת המצב מהשרת ומיזוג
+                const server = await (await api('GET')).json();
+                const sMap = new Map(server.map(r => [r.id, r]));
+                const merged = [], toUpload = [];
+                for (const l of recipes) {
+                    const s = sMap.get(l.id);
+                    if (!l._synced) { merged.push(l); toUpload.push(l); }      // חדש או נערך כאן, עוד לא בשרת
+                    else if (s) merged.push({ ...s, _synced: true });          // השרת הוא מקור האמת
+                    // אחרת: היה בשרת ונמחק ממכשיר אחר, אז מסירים גם כאן
+                    sMap.delete(l.id);
+                }
+                for (const s of sMap.values()) merged.push({ ...s, _synced: true }); // מתכונים חדשים ממכשירים אחרים
+                merged.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+                // 3) העלאת מה שחדש מקומית
+                for (const l of toUpload) {
+                    const { _synced, ...pub } = l;
+                    await api('PUT', '', pub);
+                    l._synced = true;
+                }
+                const changed = JSON.stringify(merged) !== JSON.stringify(recipes);
+                recipes = merged;
+                saveLocal();
+                if (changed) {
+                    applyFilters();
+                }
+                setSyncStatus('☁️ מסונכרן');
+            } catch (e) {
+                setSyncStatus('📴 מצב מקומי (לא מסונכרן)');
+            } finally {
+                syncing = false;
+                if (resync) { resync = false; syncRecipes(); }
+            }
+        }
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) syncRecipes(); });
+        setInterval(() => { if (!document.hidden) syncRecipes(); }, 60000);
+
+        // הצגת כל המתכונים
+        function renderRecipes(list) {
+            if (!list) { applyFilters(); return; }
+            const grid = document.getElementById('recipeGrid');
+            grid.innerHTML = '';
+
+            if (list.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-span-full text-center py-12 bg-white rounded-2xl border border-dashed border-stone-300 p-8">
+                        <span class="text-4xl block mb-3">🍳</span>
+                        <h3 class="text-lg font-bold text-stone-700">${recipes.length ? 'לא נמצאו מתכונים' : 'אין עדיין מתכונים בספר'}</h3>
+                        <p class="text-stone-500 text-sm mt-1">לחץ על "הוסף מתכון חדש" כדי להתחיל לבנות את האוסף המשפחתי!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.forEach(r => {
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl border border-stone-200 shadow-sm hover:shadow-md transition flex flex-col overflow-hidden";
+                
+                const categoryBadge = r.category || 'כללי';
+                const hasNotes = r.notes && r.notes.trim().length > 0;
+
+                card.innerHTML = `
+                    <div class="p-5 flex-1 flex flex-col">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">${escapeHtml(categoryBadge)}</span>
+                            ${hasNotes ? '<span class="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md">💡 עם הערות</span>' : ''}
+                        </div>
+                        <div class="flex items-center gap-3 mb-2">${thumb(r.imageUrl, 'w-16 h-16')}<h3 class="text-xl font-bold text-stone-800 font-heading leading-snug">${escapeHtml(r.name)}</h3></div>
+                        <p class="text-stone-500 text-sm line-clamp-3 mb-4 flex-1">
+                            ${r.ingredients ? '<b>רכיבים:</b> ' + escapeHtml(r.ingredients).replace(/\n/g, ', ') : 'לחץ לצפייה בפרטים'}
+                        </p>
+                        
+                        <div class="flex items-center justify-between pt-3 border-t border-stone-100 mt-auto">
+                            <button onclick="viewRecipe('${r.id}')" 
+                                    class="bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-sm px-4 py-2 rounded-xl border border-amber-200 transition">
+                                צפה במתכון
+                            </button>
+                            <div class="flex gap-2">
+                                <button onclick="openEditModal('${r.id}')" class="p-2 text-stone-500 hover:text-amber-700 hover:bg-stone-100 rounded-lg transition" title="ערוך מתכון">
+                                    ✏️
+                                </button>
+                                <button onclick="deleteRecipe('${r.id}')" class="p-2 text-stone-500 hover:text-red-600 hover:bg-stone-100 rounded-lg transition" title="מחק מתכון">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // פתיחת מודאל הוספה
+        function openAddModal() {
+            document.getElementById('modalTitle').innerText = 'הוספת מתכון חדש';
+            document.getElementById('recipeForm').reset();
+            document.getElementById('recipeId').value = '';
+            updateImagePreview();
+            document.getElementById('extractStatus').className = 'hidden'; document.getElementById('pasteBox').classList.add('hidden'); document.getElementById('pasteText').value = '';
+            document.getElementById('recipeModal').classList.remove('hidden');
+            document.getElementById('recipeModal').classList.add('flex');
+        }
+
+        // פתיחת מודאל עריכה
+        function openEditModal(id) {
+            const r = recipes.find(item => item.id === id);
+            if (!r) return;
+
+            document.getElementById('modalTitle').innerText = 'עריכת מתכון';
+            document.getElementById('recipeId').value = r.id;
+            document.getElementById('name').value = r.name || '';
+            document.getElementById('category').value = r.category || 'עיקריות';
+            document.getElementById('videoUrl').value = r.videoUrl || '';
+            document.getElementById('imageUrl').value = r.imageUrl || '';
+            updateImagePreview();
+            document.getElementById('ingredients').value = r.ingredients || '';
+            document.getElementById('instructions').value = r.instructions || '';
+            document.getElementById('notes').value = r.notes || '';
+            
+            document.getElementById('extractStatus').className = 'hidden'; document.getElementById('pasteBox').classList.add('hidden'); document.getElementById('pasteText').value = '';
+            document.getElementById('recipeModal').classList.remove('hidden');
+            document.getElementById('recipeModal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('recipeModal').classList.add('hidden');
+            document.getElementById('recipeModal').classList.remove('flex');
+        }
+
+        function closeViewModal() {
+            document.getElementById('viewModal').classList.add('hidden');
+            document.getElementById('viewModal').classList.remove('flex');
+        }
+
+        // שמירת מתכון (הוספה או עדכון)
+        function saveRecipe(e) {
+            e.preventDefault();
+            const id = document.getElementById('recipeId').value;
+            const name = document.getElementById('name').value.trim();
+            const category = document.getElementById('category').value;
+            const videoUrl = document.getElementById('videoUrl').value.trim();
+            const imageUrl = document.getElementById('imageUrl').value.trim();
+            const ingredients = document.getElementById('ingredients').value.trim();
+            const instructions = document.getElementById('instructions').value.trim();
+            const notes = document.getElementById('notes').value.trim();
+
+            if (id) {
+                // עדכון מתכון קיים
+                const index = recipes.findIndex(r => r.id === id);
+                if (index !== -1) {
+                    recipes[index] = { ...recipes[index], name, category, videoUrl, imageUrl, ingredients, instructions, notes, updatedAt: new Date().toISOString(), _synced: false };
+                }
+            } else {
+                // הוספת מתכון חדש
+                const newRecipe = {
+                    id: Date.now().toString(),
+                    name,
+                    category,
+                    videoUrl,
+                    imageUrl,
+                    ingredients,
+                    instructions,
+                    notes,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                recipes.unshift(newRecipe);
+            }
+
+            saveLocal();
+            if (category) { currentCat = category; document.getElementById('searchInput').value = ''; }
+            renderRecipes();
+            closeModal();
+            syncRecipes();
+        }
+
+        // מחיקת מתכון
+        function deleteRecipe(id) {
+            if (confirm('האם למחוק מתכון זה מספר המתכונים?')) {
+                recipes = recipes.filter(r => r.id !== id);
+                saveLocal();
+                setDeleted([...getDeleted(), id]);
+                renderRecipes();
+                syncRecipes();
+            }
+        }
+
+        // הצגת מתכון מלא
+        function viewRecipe(id) {
+            const r = recipes.find(item => item.id === id);
+            if (!r) return;
+
+            let videoHtml = '';
+            if (r.videoUrl) {
+                let embedUrl = getEmbedUrl(r.videoUrl);
+                if (embedUrl) {
+                    videoHtml = `<div class="video-container mt-6"><iframe src="${embedUrl}" allowfullscreen></iframe></div>`;
+                } else {
+                    videoHtml = `<a href="${escapeHtml(r.videoUrl)}" target="_blank" class="inline-flex items-center gap-2 mt-4 text-amber-700 font-semibold hover:underline">🔗 לקישור המקור ↗</a>`;
+                }
+            }
+
+            const viewContent = document.getElementById('viewModalContent');
+            viewContent.innerHTML = `
+                <button onclick="closeViewModal()" class="no-print absolute top-4 left-4 text-stone-400 hover:text-stone-700 text-2xl font-bold">✕</button>
+                <button onclick="window.print()" class="no-print absolute top-5 left-14 text-sm font-semibold text-amber-700 hover:underline">🖨️ הדפסה</button>
+                
+                <div class="mb-4">
+                    <span class="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full">${escapeHtml(r.category || 'כללי')}</span>
+                </div>
+                
+                <div class="flex items-center gap-4 mb-6">${thumb(r.imageUrl, 'w-20 h-20')}<h2 class="text-3xl font-bold text-stone-900 font-heading">${escapeHtml(r.name)}</h2></div>
+                
+                <div class="space-y-6">
+                    ${r.ingredients ? `
+                        <div class="bg-stone-50 p-4 rounded-xl border border-stone-200">
+                            <h4 class="text-lg font-bold text-amber-800 mb-2 flex items-center gap-2">🛒 רכיבים:</h4>
+                            <p class="text-stone-700 whitespace-pre-line leading-relaxed">${escapeHtml(r.ingredients)}</p>
+                        </div>
+                    ` : ''}
+
+                    ${r.instructions ? `
+                        <div>
+                            <h4 class="text-lg font-bold text-amber-800 mb-2 flex items-center gap-2">👩‍🍳 הוראות הכנה:</h4>
+                            <p class="text-stone-700 whitespace-pre-line leading-relaxed">${escapeHtml(r.instructions)}</p>
+                        </div>
+                    ` : ''}
+
+                    ${r.notes ? `
+                        <div class="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                            <h4 class="text-lg font-bold text-amber-900 mb-2 flex items-center gap-2">💡 הערות אישיות וחידודים:</h4>
+                            <p class="text-amber-950 whitespace-pre-line leading-relaxed font-medium">${escapeHtml(r.notes)}</p>
+                        </div>
+                    ` : ''}
+
+                    ${videoHtml}
+                </div>
+
+                <div class="no-print flex justify-between items-center mt-8 pt-4 border-t border-stone-100">
+                    <button onclick="openEditModal('${r.id}'); closeViewModal();" class="text-amber-700 font-semibold hover:underline flex items-center gap-1">
+                        ✏️ ערוך מתכון והערות
+                    </button>
+                    <div class="flex gap-2"><button onclick="window.print()" class="border border-amber-600 text-amber-700 font-semibold px-5 py-2 rounded-xl hover:bg-amber-50 transition">🖨️ הדפסה</button><button onclick="closeViewModal()" class="bg-amber-600 text-white font-semibold px-6 py-2 rounded-xl hover:bg-amber-700 transition">
+                        סגור
+                    </button></div>
+                </div>
+            `;
+
+            document.getElementById('viewModal').classList.remove('hidden');
+            document.getElementById('viewModal').classList.add('flex');
+        }
+
+        // חילוץ Embed מ-YouTube
+        function getEmbedUrl(url) {
+            if (!url) return null;
+            let id = '';
+            if (url.includes('youtu.be/')) {
+                id = url.split('youtu.be/')[1]?.split('?')[0];
+            } else if (url.includes('watch?v=')) {
+                id = url.split('watch?v=')[1]?.split('&')[0];
+            }
+            return id ? `https://www.youtube.com/embed/${id}` : null;
+        }
+
+        // ===============================================
+        // חילוץ אוטומטי מקישור (גרסה משופרת)
+        // ===============================================
+        const PROXIES = [
+            u => `/.netlify/functions/fetch-recipe?url=${encodeURIComponent(u)}`, // פונקציית השרת שלנו (קודם כול)
+            u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+            u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+            u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`
+        ];
+
+        // הגנה מפני HTML בתוך טקסט שמוצג בכרטיסים
+        function escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // ניקוי טקסט: מסיר תגיות HTML ומפענח ישויות (&amp; &#39; וכו') בלי להריץ קוד
+        function cleanText(s) {
+            if (s == null) return '';
+            const html = String(s).replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|li|div)>/gi, '\n');
+            const text = new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
+            return text.replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
+        }
+
+        // מנסה כמה שירותי Proxy לפי הסדר, עד שאחד מצליח
+        async function fetchHtml(url) {
+            let lastErr = new Error('no proxy worked');
+            for (const makeUrl of PROXIES) {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 12000);
+                try {
+                    const res = await fetch(makeUrl(url), { signal: ctrl.signal });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    const txt = await res.text();
+                    if (txt && txt.length > 500) return txt;
+                    throw new Error('empty response');
+                } catch (e) {
+                    lastErr = e;
+                } finally {
+                    clearTimeout(timer);
+                }
+            }
+            throw lastErr;
+        }
+
+        // @type יכול להיות מחרוזת או מערך (["Recipe"]) – הקוד הקודם טיפל רק במחרוזת
+        function isRecipe(n) {
+            const t = n && n['@type'];
+            return Array.isArray(t) ? t.includes('Recipe') : t === 'Recipe';
+        }
+
+        // חיפוש רקורסיבי של אובייקט Recipe בכל מבנה JSON-LD (@graph, מערכים, mainEntity...)
+        function findRecipe(n) {
+            if (!n || typeof n !== 'object') return null;
+            if (Array.isArray(n)) {
+                for (const x of n) { const r = findRecipe(x); if (r) return r; }
+                return null;
+            }
+            if (isRecipe(n)) return n;
+            for (const k in n) {
+                if (n[k] && typeof n[k] === 'object') { const r = findRecipe(n[k]); if (r) return r; }
+            }
+            return null;
+        }
+
+        // הוראות הכנה יכולות להיות: מחרוזת, מערך מחרוזות, HowToStep, או HowToSection עם itemListElement
+        function flattenSteps(x) {
+            if (!x) return [];
+            if (typeof x === 'string') return cleanText(x).split('\n').filter(Boolean);
+            if (Array.isArray(x)) return x.flatMap(flattenSteps);
+            if (typeof x === 'object') {
+                if (x.itemListElement) return flattenSteps(x.itemListElement);
+                return flattenSteps(x.text || x.name || '');
+            }
+            return [];
+        }
+
+        function listFromSchema(v) {
+            if (!v) return [];
+            return (Array.isArray(v) ? v : [v]).flatMap(i => cleanText(i).split('\n')).map(s => s.trim()).filter(Boolean);
+        }
+
+        // גיבוי: אם אין JSON-LD, מחפשים ישירות ב-HTML (microdata ותוספי מתכונים נפוצים)
+        function scrapeFromDom(doc) {
+            const pick = (selectors) => {
+                for (const sel of selectors) {
+                    const found = [...new Set([...doc.querySelectorAll(sel)].map(el => cleanText(el.innerHTML)).filter(Boolean))];
+                    if (found.length) return found.flatMap(t => t.split('\n')).filter(Boolean);
+                }
+                return [];
+            };
+            return {
+                ingredients: pick([
+                    '[itemprop="recipeIngredient"]', '[itemprop="ingredients"]',
+                    '.wprm-recipe-ingredient', '.tasty-recipes-ingredients li',
+                    '.recipe-ingredients li', '.ingredients li', '.ingredient'
+                ]),
+                instructions: pick([
+                    '.wprm-recipe-instruction-text', '.tasty-recipes-instructions li',
+                    '[itemprop="recipeInstructions"] li', '[itemprop="recipeInstructions"] p',
+                    '[itemprop="recipeInstructions"]',
+                    '.recipe-steps li', '.instructions li', '.method li', '.directions li'
+                ])
+            };
+        }
+
+        // גיבוי אחרון לאתרי חדשות/בלוגים: אין תגיות מתכון, אז מחפשים בטקסט את הכותרות
+        // "המצרכים" ו"אופן ההכנה" ולוקחים את מה שמתחתן
+        function scrapeFromText(doc) {
+            const lines = [];
+            doc.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,div,td').forEach(el => {
+                if (el.querySelector('h1,h2,h3,h4,h5,h6,p,li,div,ul,ol,table,section,article')) return; // רק אלמנטים "עלים"
+                if (el.closest('nav,footer,aside')) return;
+                cleanText(el.innerHTML).split('\n').forEach(t => { t = t.trim(); if (t) lines.push(t); });
+            });
+
+            return scrapeLines(lines);
+        }
+
+        function scrapeLines(lines) {
+            // ניקוי: שורות שהן קישור/פרסומת נזרקות, קישורי markdown הופכים לטקסט, כוכביות ותבליטים מוסרים
+            const PROMO = /^(רוצים עוד|ספרי המתכונים|סדנת אפייה|טבלת מידות|מתכונים (נוספים|דומים)|תגובות|שתפו|הוסיפו תגובה)/;
+            lines = lines
+                .filter(t => !/^\s*(?:[^\w\s\u05d0-\u05ea]\s*)?\[[^\]]*\]\([^)]*\)\s*$/.test(t))
+                .map(t => t.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*/g, '').replace(/^\s*[•·]\s*/, '').replace(/\s+/g, ' ').trim())
+                .filter(t => t && !PROMO.test(t.replace(/^[^\u05d0-\u05eaA-Za-z]+/, '')));
+            // מנקה סימנים בתחילת שורה (אימוג'י, מספור, תבליט) לפני בדיקת כותרת
+            const head = t => t.replace(/^[^\u05d0-\u05eaA-Za-z]+/, '');
+            const isIngHead = t => t.length <= 70 && /(^|\s)(ה?מצרכים|ה?מרכיבים|ה?רכיבים)(\s|:|：|$)/.test(head(t));
+            const isInsHead = t => t.length <= 70 && (
+                /^(אופן|דרך|שלבי|הוראות)\s*ה?הכנה/.test(head(t)) ||
+                /^איך\s+(מכינים|מכין|מבשלים|אופים|עושים|מכינות|מכינה)/.test(head(t)) ||
+                /(^|\s)ה?הכנה\s*[:：]?\s*$/.test(head(t)) ||
+                /^אופן\s+(ה?עבודה|הכנת המתכון)/.test(head(t)));
+            const STOP = /^(ה?טיפ|טיפים|הערה|הערות|תגיות|כתבות|מצאת טעות)/;
+            // שלב ממוספר (למשל "5. הערה: ...") הוא חלק מההוראות ולא סוף שלהן
+            const isStop = t => !/^\d+\s*[.)]/.test(t) && (STOP.test(head(t)) || (t.length <= 60 && /בהצלחה|בתיאבון/.test(t)));
+
+            const iIng = lines.findIndex(isIngHead);
+            if (iIng < 0) return { ingredients: [], instructions: [] };
+            let iIns = lines.findIndex((t, i) => i > iIng && isInsHead(t));
+
+            // אין כותרת "אופן ההכנה"? שורות רכיבים קצרות, ושורות הוראות הן משפטים ארוכים:
+            // מתחילים את ההוראות בשורה הארוכה הראשונה אחרי הרכיבים
+            let splitAt = -1;
+            if (iIns < 0) {
+                splitAt = lines.findIndex((t, i) => i > iIng + 1 && t.length >= 70);
+                if (splitAt > 0) iIns = splitAt - 1;
+            }
+
+            const take = (from, to) => {
+                const out = [];
+                for (let i = from + 1; i < to && out.length < 80; i++) {
+                    if (isStop(lines[i])) break;
+                    out.push(lines[i]);
+                }
+                return out;
+            };
+            return {
+                ingredients: take(iIng, iIns < 0 ? lines.length : iIns + (splitAt > 0 ? 1 : 0)),
+                instructions: iIns < 0 ? [] : take(iIns, lines.length)
+            };
+        }
+
+        // חילוץ מטקסט שהמשתמש הדביק (עובד גם כשהאתר חוסם גישה אוטומטית)
+        function extractFromPastedText() {
+            const statusDiv = document.getElementById('extractStatus');
+            const lines = document.getElementById('pasteText').value.split('\n').map(t => t.trim()).filter(Boolean);
+            const { ingredients, instructions } = scrapeLines(lines);
+            const setStatus = (cls, msg) => { statusDiv.className = 'text-xs mt-2 font-medium block ' + cls; statusDiv.textContent = msg; };
+
+            const nameInput = document.getElementById('name');
+            if (!nameInput.value.trim()) {
+                const title = lines.find(t => t.length <= 100 && /^מתכון/.test(t));
+                if (title) nameInput.value = title;
+            }
+            if (ingredients.length) document.getElementById('ingredients').value = ingredients.join('\n');
+            if (instructions.length) document.getElementById('instructions').value = instructions.join('\n');
+            if (ingredients.length || instructions.length) setSourceLink(document.getElementById('importUrl').value.trim());
+
+            if (ingredients.length && instructions.length) {
+                setStatus('text-green-700', `✅ חולצו ${ingredients.length} שורות רכיבים ו-${instructions.length} שורות הוראות. כדאי לעבור עליהן.`);
+            } else if (ingredients.length || instructions.length) {
+                setStatus('text-amber-700', 'ℹ️ חולץ רק חלק. ודאו שהטקסט שהודבק כולל גם את הכותרת "מצרכים" וגם את "אופן ההכנה".');
+            } else {
+                setStatus('text-red-600', 'לא נמצאו הכותרות "מצרכים" ו"אופן ההכנה" בטקסט שהודבק.');
+            }
+        }
+
+        async function pasteFromClipboard() {
+            try {
+                document.getElementById('pasteText').value = await navigator.clipboard.readText();
+                extractFromPastedText();
+            } catch (e) {
+                const st = document.getElementById('extractStatus');
+                st.className = 'text-xs mt-2 font-medium block text-red-600';
+                st.textContent = 'הדפדפן לא אישר גישה ללוח. לחצו לחיצה ארוכה בתיבה ובחרו "הדבק".';
+                document.getElementById('pasteText').focus();
+            }
+        }
+
+        function togglePasteBox(force) {
+            const box = document.getElementById('pasteBox');
+            box.classList.toggle('hidden', force === undefined ? box.classList.contains('hidden') ? false : true : !force);
+        }
+
+        // שומר את כתובת האתר שממנו חילצנו בשדה הקישור (רק אם השדה ריק)
+        function setSourceLink(url) {
+            const v = document.getElementById('videoUrl');
+            if (/^https?:\/\//i.test(url || '') && !v.value.trim()) v.value = url;
+        }
+
+        async function extractRecipeFromUrl() {
+            const urlInput = document.getElementById('importUrl').value.trim();
+            const statusDiv = document.getElementById('extractStatus');
+            const extractBtn = document.getElementById('extractBtn');
+            const setStatus = (cls, msg) => { statusDiv.className = 'text-xs mt-2 font-medium block ' + cls; statusDiv.textContent = msg; };
+
+            if (!/^https?:\/\//i.test(urlInput)) {
+                setStatus('text-red-600', 'אנא הדבק קישור תקין שמתחיל ב-https://');
+                return;
+            }
+
+            setStatus('text-amber-800', '⏳ מנסה לחלץ את נתוני המתכון...');
+            extractBtn.disabled = true;
+
+            try {
+                const htmlText = await fetchHtml(urlInput);
+                const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+
+                // 1) JSON-LD (Schema.org Recipe)
+                let recipe = null;
+                for (const script of doc.querySelectorAll('script[type="application/ld+json"]')) {
+                    const raw = script.textContent;
+                    let json = null;
+                    try { json = JSON.parse(raw); }
+                    catch (e) { try { json = JSON.parse(raw.replace(/[\u0000-\u001f]+/g, ' ')); } catch (e2) { } }
+                    recipe = findRecipe(json);
+                    if (recipe) break;
+                }
+
+                let name = '', ingredients = [], steps = [];
+                if (recipe) {
+                    name = cleanText(recipe.name);
+                    ingredients = listFromSchema(recipe.recipeIngredient || recipe.ingredients);
+                    steps = flattenSteps(recipe.recipeInstructions);
+                }
+
+                // 2) גיבוי מה-HTML אם משהו חסר
+                const fromSchema = steps.length > 0;
+                if (!ingredients.length || !steps.length) {
+                    const dom = scrapeFromDom(doc);
+                    if (!ingredients.length) ingredients = dom.ingredients;
+                    if (!steps.length) steps = dom.instructions;
+                }
+
+                // 3) אתרי חדשות/בלוגים בלי תגיות מתכון: חיפוש לפי הכותרות "מצרכים" ו"אופן ההכנה"
+                if (!ingredients.length || !steps.length) {
+                    const txt = scrapeFromText(doc);
+                    if (!ingredients.length) ingredients = txt.ingredients;
+                    if (!steps.length) steps = txt.instructions;
+                }
+
+                if (!name) {
+                    const og = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
+                    const title = og || doc.querySelector('title')?.textContent || '';
+                    name = cleanText(title).split(/\s[|\-–—]\s/)[0].trim();
+                }
+
+                // תמונת המנה: מתגית המתכון, ואם אין אז מ-og:image
+                let image = recipe ? pickImage(recipe.image) : '';
+                if (!image) image = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') ||
+                                    doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content') || '';
+                image = absUrl(image, urlInput);
+                const imgInput = document.getElementById('imageUrl');
+                if (image && !imgInput.value.trim()) { imgInput.value = image; updateImagePreview(); }
+
+                if (name) document.getElementById('name').value = name;
+                if (ingredients.length) document.getElementById('ingredients').value = ingredients.join('\n');
+                if (steps.length) {
+                    const numbered = fromSchema && steps.length > 1 && !/^\d+[.)]/.test(steps[0]);
+                    document.getElementById('instructions').value =
+                        steps.map((s, i) => numbered ? `${i + 1}. ${s}` : s).join('\n');
+                }
+
+                if (name || ingredients.length || steps.length) setSourceLink(urlInput);
+
+                if (ingredients.length && steps.length) {
+                    setStatus('text-green-700', `✅ חולצו ${ingredients.length} רכיבים ו-${steps.length} שלבים. כדאי לעבור עליהם ולתקן במידת הצורך.`);
+                } else if (ingredients.length || steps.length) {
+                    setStatus('text-amber-700', `⚠️ חולצו חלקית (${ingredients.length} רכיבים, ${steps.length} שלבים). את השאר אפשר להעתיק ידנית.`);
+                } else {
+                    setStatus('text-amber-700', 'ℹ️ לא נמצאו מצרכים והוראות בדף הזה (ייתכן שהאתר טוען אותם בדרך שאי אפשר לקרוא). מילאנו את השם, ואת השאר אפשר להדביק ידנית.');
+                }
+            } catch (err) {
+                console.error(err);
+                setStatus('text-red-600', '⚠️ האתר חוסם גישה אוטומטית. פתחנו למטה תיבה: הדביקו בה את טקסט הכתבה ונחלץ משם.');
+                togglePasteBox(true);
+            } finally {
+                extractBtn.disabled = false;
+            }
+        }
+
+        // קטגוריות, חיפוש ומיון לפי א-ב
+        const CATS = [['עיקריות', '🍲 מנות עיקריות'], ['תוספות', '🍚 תוספות'], ['סלטים', '🥗 סלטים'],
+                      ['מרקים', '🥣 מרקים'], ['מאפים', '🥖 מאפים ולחמים'], ['קינוחים', '🍰 קינוחים'], ['אחר', '📌 אחר']];
+        let currentCat = '';
+
+        function renderCatNav() {
+            document.getElementById('catNav').innerHTML = CATS.map(([v, label]) => {
+                const n = recipes.filter(r => r.category === v).length;
+                const on = v === currentCat;
+                return `<button type="button" onclick="setCategory('${v}')" class="text-sm font-semibold px-4 py-1.5 rounded-full border transition ${on ? 'bg-white text-amber-800 border-white shadow' : 'bg-white/10 text-white border-white/40 hover:bg-white/25'}">${label} <span class="opacity-70">(${n})</span></button>`;
+            }).join('');
+        }
+
+        function setCategory(c) {
+            currentCat = (currentCat === c) ? '' : c;   // לחיצה נוספת על הקטגוריה הפעילה מחזירה לכל המתכונים
+            document.getElementById('searchInput').value = '';
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+            if (!currentCat && !q) {                      // דף ראשי: בלי רשימת מתכונים
+                renderCatNav();
+                if (recipes.length === 0) { renderRecipes([]); return; }
+                document.getElementById('recipeGrid').innerHTML = `<div class="col-span-full text-center py-12 text-stone-500"><span class="text-4xl block mb-3">👆</span><p class="text-lg font-semibold text-stone-700">בחרו קטגוריה או חפשו מתכון</p><p class="text-sm mt-1">בספר יש ${recipes.length} מתכונים</p></div>`;
+                return;
+            }
+            const list = recipes
+                .filter(r => (!currentCat || r.category === currentCat) &&
+                    (!q || (r.name || '').toLowerCase().includes(q) ||
+                        (r.ingredients && r.ingredients.toLowerCase().includes(q)) ||
+                        (r.notes && r.notes.toLowerCase().includes(q))))
+                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'he'));
+            renderCatNav();
+            renderRecipes(list);
+        }
+        document.getElementById('searchInput').addEventListener('input', () => {
+            if (document.getElementById('searchInput').value.trim()) currentCat = '';   // חיפוש רץ על כל הספר
+            applyFilters();
+        });
+
+        // תמונת מנה: קטנה, ליד השם (אם הקישור נכשל התמונה פשוט נעלמת)
+        function thumb(url, size) {
+            if (!/^https?:\/\//i.test(url || '')) return '';
+            return `<img src="${escapeHtml(url)}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.remove()" class="${size} rounded-xl object-cover shrink-0 border border-stone-200">`;
+        }
+
+        function updateImagePreview() {
+            const u = document.getElementById('imageUrl').value.trim();
+            const p = document.getElementById('imagePreview');
+            if (/^https?:\/\//i.test(u)) { p.src = u; p.classList.remove('hidden'); }
+            else { p.removeAttribute('src'); p.classList.add('hidden'); }
+        }
+
+        function pickImage(x) {
+            if (!x) return '';
+            if (typeof x === 'string') return x;
+            if (Array.isArray(x)) { for (const i of x) { const r = pickImage(i); if (r) return r; } return ''; }
+            if (typeof x === 'object') return pickImage(x.url || x.contentUrl || '');
+            return '';
+        }
+
+        function absUrl(u, base) {
+            try {
+                const a = new URL(u, base);
+                return /^https?:$/.test(a.protocol) ? a.href.replace(/^http:/, 'https:') : '';
+            } catch (e) { return ''; }
+        }
+
+        // טעינה ראשונית
+        renderRecipes();
+        syncRecipes();
+    </script>
+</body>
+</html>
