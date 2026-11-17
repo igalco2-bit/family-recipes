@@ -100,7 +100,7 @@
         </div>
 
     </main>
-    <p class="no-print text-center text-xs text-stone-400 pb-6">גרסה 12.12 – קישור בשם המתכון ומצב בישול</p>
+    <p class="no-print text-center text-xs text-stone-400 pb-6">גרסה 12.13 – בדיקות תקינות ומצב בישול חכם</p>
 
     <!-- מודאל הוספת / עריכת מתכון -->
     <div id="recipeModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-backdrop overflow-y-auto">
@@ -194,6 +194,9 @@
                               class="w-full px-4 py-2.5 border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"></textarea>
                 </div>
 
+                <!-- פאנל בדיקות תקינות לפני שמירה -->
+                <div id="checkPanel" data-testid="check-panel" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-4 text-sm text-amber-900"></div>
+
                 <div class="flex justify-end gap-3 pt-4 border-t border-stone-100">
                     <button type="button" onclick="closeModal()" 
                             class="px-5 py-2.5 border border-stone-300 rounded-xl text-stone-600 hover:bg-stone-50 font-semibold transition">
@@ -216,6 +219,7 @@
     </div>
 
 
+    <script src="recipe-rules.js"></script>
     <script>
         // ניהול המידע: localStorage כמטמון מקומי + סנכרון לשרת (Netlify Blobs) כדי שכל המכשירים יראו אותו דבר
         const API = '/.netlify/functions/recipes';
@@ -353,7 +357,7 @@
                         </div>
                         <div class="flex items-center gap-3 mb-2">${thumb(r.imageUrl, 'w-16 h-16')}<h3 class="text-xl font-bold text-stone-800 font-heading leading-snug">${nameHtml(r)}</h3></div>
                         <p class="text-stone-500 text-sm line-clamp-3 mb-4 flex-1">
-                            ${r.ingredients ? '<b>רכיבים:</b> ' + escapeHtml(r.ingredients).replace(/\n/g, ', ') : 'לחץ לצפייה בפרטים'}
+                            ${previewIngredients(r) ? '<b>רכיבים:</b> ' + escapeHtml(previewIngredients(r)) : 'לחץ לצפייה בפרטים'}
                         </p>
                         
                         <div class="flex items-center justify-between pt-3 border-t border-stone-100 mt-auto">
@@ -381,6 +385,7 @@
             document.getElementById('modalTitle').innerText = 'הוספת מתכון חדש';
             document.getElementById('recipeForm').reset();
             document.getElementById('recipeId').value = '';
+            resetCheckPanel();
             updateImagePreview();
             document.getElementById('extractStatus').className = 'hidden'; document.getElementById('pasteBox').classList.add('hidden'); document.getElementById('pasteText').value = '';
             document.getElementById('recipeModal').classList.remove('hidden');
@@ -393,6 +398,7 @@
             if (!r) return;
 
             document.getElementById('modalTitle').innerText = 'עריכת מתכון';
+            resetCheckPanel();
             document.getElementById('recipeId').value = r.id;
             document.getElementById('name').value = r.name || '';
             document.getElementById('category').value = r.category || 'עיקריות';
@@ -409,6 +415,7 @@
         }
 
         function closeModal() {
+            resetCheckPanel();
             document.getElementById('recipeModal').classList.add('hidden');
             document.getElementById('recipeModal').classList.remove('flex');
         }
@@ -419,17 +426,81 @@
             releaseWakeLock();
         }
 
+        // ---------- בדיקות תקינות בטופס ----------
+        let saveAnyway = false;
+
+        // בניית אובייקט מתכון משדות הטופס
+        function getFormRecipe() {
+            const v = k => document.getElementById(k).value.trim();
+            return { id: v('recipeId'), name: v('name'), category: document.getElementById('category').value, videoUrl: v('videoUrl'),
+                     imageUrl: v('imageUrl'), ingredients: v('ingredients'), instructions: v('instructions'), notes: v('notes') };
+        }
+
+        function resetCheckPanel() {
+            saveAnyway = false;
+            const p = document.getElementById('checkPanel');
+            if (p) { p.classList.add('hidden'); p.innerHTML = ''; }
+        }
+
+        function renderCheckPanel(issues) {
+            const p = document.getElementById('checkPanel');
+            if (!issues.length) { resetCheckPanel(); return; }
+            const hasError = issues.some(i => i.level === 'error');
+            p.innerHTML = `
+                <div class="font-bold mb-2">${hasError ? '⛔ יש לתקן לפני השמירה' : '⚠️ כדאי לבדוק לפני השמירה'}</div>
+                ${issues.map(i => `
+                    <div data-testid="check-issue" data-code="${escapeHtml(i.code)}" class="mb-2">
+                        <div class="${i.level === 'error' ? 'text-red-700 font-semibold' : 'text-amber-900'}">${i.level === 'error' ? '⛔' : '⚠️'} ${escapeHtml(i.msg)}</div>
+                        ${i.lines && i.lines.length ? `<ul class="mt-1 mr-4 list-disc text-xs text-stone-500">${i.lines.slice(0, 5).map(l => `<li><code>${escapeHtml(l)}</code></li>`).join('')}${i.lines.length > 5 ? `<li>ועוד ${i.lines.length - 5}...</li>` : ''}</ul>` : ''}
+                    </div>`).join('')}
+                <div class="flex gap-2 flex-wrap mt-3">
+                    <button type="button" data-testid="check-autoclean" onclick="autoCleanAndRecheck()" class="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-1.5 rounded-lg transition">✨ נקה אוטומטית</button>
+                    ${hasError ? '' : '<button type="button" data-testid="check-save-anyway" onclick="saveAnywayClick()" class="border border-amber-700 text-amber-800 font-semibold px-4 py-1.5 rounded-lg transition">שמור בכל זאת</button>'}
+                </div>`;
+            p.classList.remove('hidden');
+        }
+
+        // מנקה את שדות הרכיבים וההוראות בטופס. מחזיר כמה שורות הוסרו/הועברו
+        function autoCleanForm() {
+            const { recipe, removed, moved } = RecipeRules.cleanRecipe(getFormRecipe());
+            document.getElementById('ingredients').value = recipe.ingredients;
+            document.getElementById('instructions').value = recipe.instructions;
+            return removed.length + moved.length;
+        }
+
+        function autoCleanAndRecheck() {
+            autoCleanForm();
+            saveAnyway = false;
+            renderCheckPanel(RecipeRules.checkRecipe(getFormRecipe(), recipes));
+        }
+
+        function saveAnywayClick() {
+            saveAnyway = true;
+            document.getElementById('recipeForm').requestSubmit();
+        }
+
+        // כל שינוי בטופס מסתיר את הפאנל ומאפס את "שמור בכל זאת"
+        document.getElementById('recipeForm').addEventListener('input', resetCheckPanel);
+
+        // תצוגה מקדימה בכרטיס: רק שורות רכיב אמיתיות
+        function previewIngredients(r) {
+            return RecipeRules.parseIngredients(r.ingredients, r.name).filter(e => e.kind === 'item').map(e => e.text).join(', ');
+        }
+
         // שמירת מתכון (הוספה או עדכון)
         function saveRecipe(e) {
             e.preventDefault();
             const id = document.getElementById('recipeId').value;
-            const name = document.getElementById('name').value.trim();
-            const category = document.getElementById('category').value;
-            const videoUrl = document.getElementById('videoUrl').value.trim();
-            const imageUrl = document.getElementById('imageUrl').value.trim();
-            const ingredients = document.getElementById('ingredients').value.trim();
-            const instructions = document.getElementById('instructions').value.trim();
-            const notes = document.getElementById('notes').value.trim();
+            const { name, category, videoUrl, imageUrl, ingredients, instructions, notes } = getFormRecipe();
+
+            // בדיקות תקינות: שגיאה חוסמת תמיד, אזהרה חוסמת עד שלוחצים "שמור בכל זאת"
+            const force = saveAnyway;
+            saveAnyway = false;
+            const issues = RecipeRules.checkRecipe({ id, name, category, videoUrl, imageUrl, ingredients, instructions, notes }, recipes);
+            if (issues.some(i => i.level === 'error') || (issues.length && !force)) {
+                renderCheckPanel(issues);
+                return;
+            }
 
             if (id) {
                 // עדכון מתכון קיים
@@ -503,14 +574,14 @@
                     ${r.ingredients ? `
                         <div class="bg-stone-50 p-4 rounded-xl border border-stone-200">
                             <h4 class="text-lg font-bold text-amber-800 mb-2 flex items-center gap-2">🛒 רכיבים:</h4>
-                            <div>${ingredientsHtml(r.ingredients)}</div>
+                            <div>${ingredientsHtml(r)}</div>
                         </div>
                     ` : ''}
 
                     ${r.instructions ? `
                         <div>
                             <h4 class="text-lg font-bold text-amber-800 mb-2 flex items-center gap-2">👩‍🍳 הוראות הכנה:</h4>
-                            <p class="text-stone-700 whitespace-pre-line leading-relaxed">${escapeHtml(r.instructions)}</p>
+                            <p class="text-stone-700 whitespace-pre-line leading-relaxed">${escapeHtml(RecipeRules.cleanInstructions(r.instructions, r.name).text)}</p>
                         </div>
                     ` : ''}
 
@@ -540,12 +611,13 @@
         }
 
         // רשימת רכיבים עם תיבות סימון (מצב בישול). כותרת קבוצה = שורה שמסתיימת ב-":". הסימונים לא נשמרים
-        function ingredientsHtml(text) {
-            return String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(line =>
-                /[:：]$/.test(line)
-                    ? `<div data-testid="ingredient-heading" class="font-bold text-stone-800 mt-3 first:mt-0">${escapeHtml(line)}</div>`
-                    : `<label data-testid="ingredient-item" class="flex items-start gap-3 py-1.5 cursor-pointer select-none"><input type="checkbox" class="peer mt-1 w-5 h-5 accent-amber-600 shrink-0"><span class="text-stone-700 leading-relaxed peer-checked:line-through peer-checked:text-stone-400">${escapeHtml(line)}</span></label>`
-            ).join('');
+        function ingredientsHtml(r) {
+            return RecipeRules.parseIngredients(r.ingredients, r.name).map(entry => {
+                if (entry.kind === 'heading') return `<div data-testid="ingredient-heading" class="font-bold text-stone-800 mt-3 first:mt-0">${escapeHtml(entry.text)}</div>`;
+                if (entry.kind === 'note') return `<div data-testid="ingredient-note" class="text-sm text-stone-400 py-1 leading-relaxed">${escapeHtml(entry.text)}</div>`;
+                if (entry.kind === 'item') return `<label data-testid="ingredient-item" class="flex items-start gap-3 py-1.5 cursor-pointer select-none"><input type="checkbox" class="peer mt-1 w-5 h-5 accent-amber-600 shrink-0"><span class="text-stone-700 leading-relaxed peer-checked:line-through peer-checked:text-stone-400">${escapeHtml(entry.text)}</span></label>`;
+                return ''; // רעש והוראות שהתערבבו: לא מוצגים
+            }).join('');
         }
 
         // חילוץ Embed מ-YouTube
@@ -688,11 +760,7 @@
             // מנקה סימנים בתחילת שורה (אימוג'י, מספור, תבליט) לפני בדיקת כותרת
             const head = t => t.replace(/^[^\u05d0-\u05eaA-Za-z]+/, '');
             const isIngHead = t => t.length <= 70 && /(^|\s)(ה?מצרכים|ה?מרכיבים|ה?רכיבים)(\s|:|：|$)/.test(head(t));
-            const isInsHead = t => t.length <= 70 && (
-                /^(אופן|דרך|שלבי|הוראות)\s*ה?הכנה/.test(head(t)) ||
-                /^איך\s+(מכינים|מכין|מבשלים|אופים|עושים|מכינות|מכינה)/.test(head(t)) ||
-                /(^|\s)ה?הכנה\s*[:：]?\s*$/.test(head(t)) ||
-                /^אופן\s+(ה?עבודה|הכנת המתכון)/.test(head(t)));
+            const isInsHead = RecipeRules.isInsHead; // הלוגיקה עברה ל-recipe-rules.js
             const STOP = /^(ה?טיפ|טיפים|הערה|הערות|תגיות|כתבות|מצאת טעות)/;
             // שלב ממוספר (למשל "5. הערה: ...") הוא חלק מההוראות ולא סוף שלהן
             const isStop = t => !/^\d+\s*[.)]/.test(t) && (STOP.test(head(t)) || (t.length <= 60 && /בהצלחה|בתיאבון/.test(t)));
@@ -738,11 +806,13 @@
             if (ingredients.length) document.getElementById('ingredients').value = ingredients.join('\n');
             if (instructions.length) document.getElementById('instructions').value = instructions.join('\n');
             if (ingredients.length || instructions.length) setSourceLink(document.getElementById('importUrl').value.trim());
+            const cleaned = (ingredients.length || instructions.length) ? autoCleanForm() : 0;
+            const sfx = cleaned > 0 ? ` 🧹 הוסרו ${cleaned} שורות לא רלוונטיות` : '';
 
             if (ingredients.length && instructions.length) {
-                setStatus('text-green-700', `✅ חולצו ${ingredients.length} שורות רכיבים ו-${instructions.length} שורות הוראות. כדאי לעבור עליהן.`);
+                setStatus('text-green-700', `✅ חולצו ${ingredients.length} שורות רכיבים ו-${instructions.length} שורות הוראות. כדאי לעבור עליהן.` + sfx);
             } else if (ingredients.length || instructions.length) {
-                setStatus('text-amber-700', 'ℹ️ חולץ רק חלק. ודאו שהטקסט שהודבק כולל גם את הכותרת "מצרכים" וגם את "אופן ההכנה".');
+                setStatus('text-amber-700', 'ℹ️ חולץ רק חלק. ודאו שהטקסט שהודבק כולל גם את הכותרת "מצרכים" וגם את "אופן ההכנה".' + sfx);
             } else {
                 setStatus('text-red-600', 'לא נמצאו הכותרות "מצרכים" ו"אופן ההכנה" בטקסט שהודבק.');
             }
@@ -845,11 +915,13 @@
                 }
 
                 if (name || ingredients.length || steps.length) setSourceLink(urlInput);
+                const cleaned = (ingredients.length || steps.length) ? autoCleanForm() : 0;
+                const sfx = cleaned > 0 ? ` 🧹 הוסרו ${cleaned} שורות לא רלוונטיות` : '';
 
                 if (ingredients.length && steps.length) {
-                    setStatus('text-green-700', `✅ חולצו ${ingredients.length} רכיבים ו-${steps.length} שלבים. כדאי לעבור עליהם ולתקן במידת הצורך.`);
+                    setStatus('text-green-700', `✅ חולצו ${ingredients.length} רכיבים ו-${steps.length} שלבים. כדאי לעבור עליהם ולתקן במידת הצורך.` + sfx);
                 } else if (ingredients.length || steps.length) {
-                    setStatus('text-amber-700', `⚠️ חולצו חלקית (${ingredients.length} רכיבים, ${steps.length} שלבים). את השאר אפשר להעתיק ידנית.`);
+                    setStatus('text-amber-700', `⚠️ חולצו חלקית (${ingredients.length} רכיבים, ${steps.length} שלבים). את השאר אפשר להעתיק ידנית.` + sfx);
                 } else {
                     setStatus('text-amber-700', 'ℹ️ לא נמצאו מצרכים והוראות בדף הזה (ייתכן שהאתר טוען אותם בדרך שאי אפשר לקרוא). מילאנו את השם, ואת השאר אפשר להדביק ידנית.');
                 }

@@ -202,3 +202,134 @@ test.describe('wake lock', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('cooking mode', () => {
+  test('notes, headings and items are rendered differently and junk is hidden', async ({ page }) => {
+    const name = 'עוגה למצב בישול';
+    const ingredients = '(תבנית בקוטר 24 ס"מ)\n12\nבחר הכל\nלבצק:\n2 כוסות קמח\n–> או רבע כפית קינמון';
+    await setup(page, [makeRecipe({ id: '20', name, ingredients })]);
+    await openRecipe(page, name);
+
+    const modal = page.locator('#viewModalContent');
+
+    const note = modal.getByTestId('ingredient-note');
+    await expect(note).toHaveCount(1);
+    await expect(note.locator('input[type=checkbox]')).toHaveCount(0);
+    await expect(note).toHaveClass(/text-stone-400/);
+
+    const items = modal.getByTestId('ingredient-item');
+    await expect(items).toHaveCount(2);
+    const secondText = await items.nth(1).textContent();
+    expect(secondText).toContain('או רבע כפית קינמון');
+    expect(secondText).not.toContain('–>');
+
+    await expect(modal.getByTestId('ingredient-heading')).toHaveCount(1);
+    await expect(modal).not.toContainText('בחר הכל');
+    await expect(modal.getByText('12', { exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('save flow with checks', () => {
+  const existing = makeRecipe({
+    id: '10',
+    name: 'מתכון קיים',
+    videoUrl: 'https://example.com/a',
+    ingredients: '1 ביצה',
+    instructions: 'מטגנים',
+  });
+
+  // Native type=url validation would block invalid test URLs, so disable it for the form.
+  async function openForm(page) {
+    await page.evaluate(() => {
+      openAddModal();
+      document.getElementById('recipeForm').noValidate = true;
+    });
+    await expect(page.locator('#recipeModal')).toBeVisible();
+  }
+
+  async function fillForm(page, { name, ingredients = '', instructions = '', videoUrl }) {
+    await page.locator('#name').fill(name);
+    await page.locator('#ingredients').fill(ingredients);
+    await page.locator('#instructions').fill(instructions);
+    if (videoUrl !== undefined) {
+      await page.locator('#videoUrl').evaluate((el, value) => {
+        el.value = value;
+      }, videoUrl);
+    }
+  }
+
+  async function submit(page) {
+    await page.locator('#recipeModal').getByRole('button', { name: 'שמור מתכון', exact: true }).click();
+  }
+
+  async function savedNames(page) {
+    return page.evaluate(() => recipes.map((r) => r.name));
+  }
+
+  test('junk ingredients are flagged, auto-cleaned, then saved', async ({ page }) => {
+    await setup(page, [existing]);
+    await openForm(page);
+    await fillForm(page, { name: 'מתכון בדיקה', ingredients: '2 כוסות קמח\nבחר הכל', instructions: 'מערבבים' });
+    await submit(page);
+
+    await expect(page.getByTestId('check-panel')).toBeVisible();
+    await expect(page.locator('[data-testid="check-issue"][data-code="junk-ingredients"]')).toBeVisible();
+    await expect(page.locator('#recipeModal')).toBeVisible();
+    expect(await savedNames(page)).not.toContain('מתכון בדיקה');
+
+    await page.getByTestId('check-autoclean').click();
+    await expect(page.locator('#ingredients')).toHaveValue('2 כוסות קמח');
+    await expect(page.getByTestId('check-panel')).toBeHidden();
+
+    await submit(page);
+    await expect(page.locator('#recipeModal')).toBeHidden();
+    await expect.poll(() => savedNames(page)).toContain('מתכון בדיקה');
+  });
+
+  test('"save anyway" keeps the junk ingredients', async ({ page }) => {
+    await setup(page, [existing]);
+    await openForm(page);
+    await fillForm(page, { name: 'מתכון עם זבל', ingredients: '2 כוסות קמח\nבחר הכל', instructions: 'מערבבים' });
+    await submit(page);
+
+    await expect(page.getByTestId('check-panel')).toBeVisible();
+    await page.getByTestId('check-save-anyway').click();
+
+    await expect(page.locator('#recipeModal')).toBeHidden();
+    await expect
+      .poll(() => page.evaluate(() => recipes.find((r) => r.name === 'מתכון עם זבל')?.ingredients ?? ''))
+      .toContain('בחר הכל');
+  });
+
+  test('unsafe video link is an error: no save-anyway, not saved', async ({ page }) => {
+    await setup(page, [existing]);
+    await openForm(page);
+    await fillForm(page, {
+      name: 'מתכון לינק רע',
+      ingredients: '2 כוסות קמח',
+      instructions: 'מערבבים',
+      videoUrl: 'javascript:alert(1)',
+    });
+    await submit(page);
+
+    await expect(page.locator('[data-testid="check-issue"][data-code="bad-link"]')).toBeVisible();
+    await expect(page.getByTestId('check-save-anyway')).toHaveCount(0);
+    await expect(page.locator('#recipeModal')).toBeVisible();
+    expect(await savedNames(page)).not.toContain('מתכון לינק רע');
+  });
+
+  test('link already used by another recipe shows a duplicate-link warning', async ({ page }) => {
+    await setup(page, [existing]);
+    await openForm(page);
+    await fillForm(page, {
+      name: 'מתכון כפול',
+      ingredients: '2 כוסות קמח\n1 ביצה',
+      instructions: 'מערבבים\nאופים',
+      videoUrl: 'https://example.com/a',
+    });
+    await submit(page);
+
+    await expect(page.getByTestId('check-panel')).toBeVisible();
+    await expect(page.locator('[data-testid="check-issue"][data-code="duplicate-link"]')).toBeVisible();
+  });
+});

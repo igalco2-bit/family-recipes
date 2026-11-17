@@ -2,3 +2,5 @@ node_modules/
 .netlify/
 test-results/
 playwright-report/
+backups/
+scripts/out/

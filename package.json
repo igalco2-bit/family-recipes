@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "netlify dev --offline --no-open --port 8888",
-    "test": "playwright test"
+    "test": "playwright test",
+    "check:live": "node scripts/check-live.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0"
