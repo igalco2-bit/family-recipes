@@ -60,6 +60,9 @@
             #viewModal { position: static !important; display: block !important; background: none !important; backdrop-filter: none !important; padding: 0 !important; overflow: visible !important; }
             #viewModalContent { max-height: none !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
             .no-print, .video-container { display: none !important; }
+            #viewModal a { color: inherit !important; text-decoration: none !important; }
+            #viewModal input[type=checkbox] { display: none !important; }
+            #viewModal label span { text-decoration: none !important; color: inherit !important; }
         }
     </style>
 </head>
@@ -97,7 +100,7 @@
         </div>
 
     </main>
-    <p class="no-print text-center text-xs text-stone-400 pb-6">גרסה 12.11 – חיפוש והוספה באותה שורה</p>
+    <p class="no-print text-center text-xs text-stone-400 pb-6">גרסה 12.12 – קישור בשם המתכון ומצב בישול</p>
 
     <!-- מודאל הוספת / עריכת מתכון -->
     <div id="recipeModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-backdrop overflow-y-auto">
@@ -291,6 +294,31 @@
             }
         }
         document.addEventListener('visibilitychange', () => { if (!document.hidden) syncRecipes(); });
+
+        // מצב בישול: מניעת כיבוי מסך בזמן שמתכון פתוח (Screen Wake Lock)
+        let wakeLock = null;
+        async function releaseWakeLock() {
+            try { await wakeLock?.release(); } catch (e) { }
+            wakeLock = null;
+            document.getElementById('wakelockNote')?.classList.add('hidden');
+        }
+        async function acquireWakeLock() {
+            if (!('wakeLock' in navigator)) return;
+            await releaseWakeLock();
+            try {
+                const lock = await navigator.wakeLock.request('screen');
+                // החלון נסגר בזמן שחיכינו? משחררים מיד ולא משאירים מסך דלוק
+                if (document.getElementById('viewModal').classList.contains('hidden')) { lock.release().catch(() => { }); return; }
+                if (wakeLock) wakeLock.release().catch(() => { });
+                wakeLock = lock;
+                document.getElementById('wakelockNote')?.classList.remove('hidden');
+            } catch (e) { }
+        }
+        // הדפדפן משחרר את הנעילה כשהלשונית מוסתרת, אז מבקשים אותה שוב בחזרה
+        document.addEventListener('visibilitychange', () => {
+            const vm = document.getElementById('viewModal');
+            if (!document.hidden && vm && !vm.classList.contains('hidden')) acquireWakeLock();
+        });
         setInterval(() => { if (!document.hidden) syncRecipes(); }, 60000);
 
         // הצגת כל המתכונים
@@ -323,7 +351,7 @@
                             <span class="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">${escapeHtml(categoryBadge)}</span>
                             ${hasNotes ? '<span class="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md">💡 עם הערות</span>' : ''}
                         </div>
-                        <div class="flex items-center gap-3 mb-2">${thumb(r.imageUrl, 'w-16 h-16')}<h3 class="text-xl font-bold text-stone-800 font-heading leading-snug">${escapeHtml(r.name)}</h3></div>
+                        <div class="flex items-center gap-3 mb-2">${thumb(r.imageUrl, 'w-16 h-16')}<h3 class="text-xl font-bold text-stone-800 font-heading leading-snug">${nameHtml(r)}</h3></div>
                         <p class="text-stone-500 text-sm line-clamp-3 mb-4 flex-1">
                             ${r.ingredients ? '<b>רכיבים:</b> ' + escapeHtml(r.ingredients).replace(/\n/g, ', ') : 'לחץ לצפייה בפרטים'}
                         </p>
@@ -388,6 +416,7 @@
         function closeViewModal() {
             document.getElementById('viewModal').classList.add('hidden');
             document.getElementById('viewModal').classList.remove('flex');
+            releaseWakeLock();
         }
 
         // שמירת מתכון (הוספה או עדכון)
@@ -467,13 +496,14 @@
                     <span class="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full">${escapeHtml(r.category || 'כללי')}</span>
                 </div>
                 
-                <div class="flex items-center gap-4 mb-6">${thumb(r.imageUrl, 'w-20 h-20')}<h2 class="text-3xl font-bold text-stone-900 font-heading">${escapeHtml(r.name)}</h2></div>
-                
+                <div class="flex items-center gap-4 mb-6">${thumb(r.imageUrl, 'w-20 h-20')}<h2 class="text-3xl font-bold text-stone-900 font-heading">${nameHtml(r)}</h2></div>
+                <p id="wakelockNote" data-testid="wakelock-note" class="no-print hidden text-xs text-amber-700 mb-4">🔆 המסך יישאר דלוק בזמן הבישול</p>
+
                 <div class="space-y-6">
                     ${r.ingredients ? `
                         <div class="bg-stone-50 p-4 rounded-xl border border-stone-200">
                             <h4 class="text-lg font-bold text-amber-800 mb-2 flex items-center gap-2">🛒 רכיבים:</h4>
-                            <p class="text-stone-700 whitespace-pre-line leading-relaxed">${escapeHtml(r.ingredients)}</p>
+                            <div>${ingredientsHtml(r.ingredients)}</div>
                         </div>
                     ` : ''}
 
@@ -506,6 +536,16 @@
 
             document.getElementById('viewModal').classList.remove('hidden');
             document.getElementById('viewModal').classList.add('flex');
+            acquireWakeLock();
+        }
+
+        // רשימת רכיבים עם תיבות סימון (מצב בישול). כותרת קבוצה = שורה שמסתיימת ב-":". הסימונים לא נשמרים
+        function ingredientsHtml(text) {
+            return String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(line =>
+                /[:：]$/.test(line)
+                    ? `<div data-testid="ingredient-heading" class="font-bold text-stone-800 mt-3 first:mt-0">${escapeHtml(line)}</div>`
+                    : `<label data-testid="ingredient-item" class="flex items-start gap-3 py-1.5 cursor-pointer select-none"><input type="checkbox" class="peer mt-1 w-5 h-5 accent-amber-600 shrink-0"><span class="text-stone-700 leading-relaxed peer-checked:line-through peer-checked:text-stone-400">${escapeHtml(line)}</span></label>`
+            ).join('');
         }
 
         // חילוץ Embed מ-YouTube
@@ -867,6 +907,14 @@
         function thumb(url, size) {
             if (!/^https?:\/\//i.test(url || '')) return '';
             return `<img src="${escapeHtml(url)}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.remove()" class="${size} rounded-xl object-cover shrink-0 border border-stone-200">`;
+        }
+
+        // שם המתכון: קישור לאתר המקור (רק http/https), אחרת טקסט רגיל
+        function nameHtml(r) {
+            if (/^https?:\/\//i.test(r.videoUrl || '')) {
+                return `<a href="${escapeHtml(r.videoUrl)}" target="_blank" rel="noopener noreferrer" data-testid="recipe-name-link" class="hover:underline hover:text-amber-700">${escapeHtml(r.name)} <span class="no-print text-base opacity-60">🔗</span></a>`;
+            }
+            return `<span data-testid="recipe-name">${escapeHtml(r.name)}</span>`;
         }
 
         function updateImagePreview() {
