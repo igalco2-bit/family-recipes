@@ -1,18 +1,23 @@
 // Read-only check of the recipes stored on the live site.
-// Usage: npm run check:live
-// Env: SITE_URL (defaults to the production site), FAMILY_CODE (sent as x-family-code if set).
+// Usage: SITE_URL=https://<site> npm run check:live
+// Env: SITE_URL (required), FAMILY_CODE (sent as x-family-code if set).
 
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
-const SITE = process.env.SITE_URL || 'https://superb-squirrel-2bafba.netlify.app';
+const SITE = process.env.SITE_URL;
+if (!SITE) {
+  console.error('שימוש: SITE_URL=https://<site> npm run check:live');
+  console.error('usage: SITE_URL=https://<site> npm run check:live');
+  process.exit(2);
+}
 
 const headers = {};
 if (process.env.FAMILY_CODE) headers['x-family-code'] = process.env.FAMILY_CODE;
 
 let recipes;
 try {
-  const res = await fetch(`${SITE}/.netlify/functions/recipes`, { headers });
+  const res = await fetch(`${SITE}/api/recipes`, { headers });
   if (!res.ok) {
     console.error(`Failed to fetch recipes: HTTP ${res.status}`);
     process.exit(1);
@@ -29,9 +34,9 @@ if (!Array.isArray(recipes)) {
 }
 
 // recipe-rules.js is a classic script that exposes its API via module.exports or a global.
-const code = await readFile(new URL('../recipe-rules.js', import.meta.url), 'utf8');
+const code = await readFile(new URL('../public/recipe-rules.js', import.meta.url), 'utf8');
 const context = { module: { exports: {} }, globalThis: {} };
-vm.runInNewContext(code, context, { filename: 'recipe-rules.js' });
+vm.runInNewContext(code, context, { filename: 'public/recipe-rules.js' });
 
 const rules =
   (context.module.exports && context.module.exports.checkRecipe ? context.module.exports : null) ||

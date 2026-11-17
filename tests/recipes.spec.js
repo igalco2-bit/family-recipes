@@ -21,7 +21,7 @@ function makeRecipe(overrides = {}) {
 // wakeLock: 'mock' installs a fake navigator.wakeLock that records calls,
 // 'none' removes navigator.wakeLock, anything else keeps the browser default.
 async function setup(page, recipes, { wakeLock } = {}) {
-  await page.route('**/.netlify/functions/recipes**', (route) => {
+  await page.route('**/api/recipes**', (route) => {
     if (route.request().method() === 'GET') return route.fulfill({ json: recipes });
     return route.fulfill({ json: { ok: true } });
   });

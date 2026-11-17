@@ -4,3 +4,4 @@ test-results/
 playwright-report/
 backups/
 scripts/out/
+.wrangler/

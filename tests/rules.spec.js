@@ -28,7 +28,7 @@ async function check(page, recipe, all = [recipe]) {
 
 test.describe('recipe rules', () => {
   test.beforeEach(async ({ page }) => {
-    await page.route('**/.netlify/functions/recipes**', (route) => {
+    await page.route('**/api/recipes**', (route) => {
       if (route.request().method() === 'GET') return route.fulfill({ json: [] });
       return route.fulfill({ json: { ok: true } });
     });

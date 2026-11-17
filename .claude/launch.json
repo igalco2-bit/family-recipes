@@ -5,6 +5,12 @@
       "name": "family-recipes",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
+      "port": 8788
+    },
+    {
+      "name": "family-recipes-netlify",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:netlify"],
       "port": 8888
     }
   ]

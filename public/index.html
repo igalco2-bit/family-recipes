@@ -222,7 +222,7 @@
     <script src="recipe-rules.js"></script>
     <script>
         // ניהול המידע: localStorage כמטמון מקומי + סנכרון לשרת (Netlify Blobs) כדי שכל המכשירים יראו אותו דבר
-        const API = '/.netlify/functions/recipes';
+        const API = '/api/recipes';
         let recipes = [];
         try { recipes = JSON.parse(localStorage.getItem('family_recipes')) || []; } catch (e) { recipes = []; }
         const saveLocal = () => { try { localStorage.setItem('family_recipes', JSON.stringify(recipes)); } catch (e) { } };
@@ -636,7 +636,7 @@
         // חילוץ אוטומטי מקישור (גרסה משופרת)
         // ===============================================
         const PROXIES = [
-            u => `/.netlify/functions/fetch-recipe?url=${encodeURIComponent(u)}`, // פונקציית השרת שלנו (קודם כול)
+            u => `/api/fetch-recipe?url=${encodeURIComponent(u)}`, // פונקציית השרת שלנו (קודם כול)
             u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
             u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
             u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`

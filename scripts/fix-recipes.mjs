@@ -9,7 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 // טעינת recipe-rules.js בהקשר מבודד (הקובץ הוא סקריפט קלאסי)
 function loadRules() {
-  const code = fs.readFileSync(path.join(here, '..', 'recipe-rules.js'), 'utf8');
+  const code = fs.readFileSync(path.join(here, '..', 'public', 'recipe-rules.js'), 'utf8');
   const sandbox = { module: { exports: {} } };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(code, sandbox);

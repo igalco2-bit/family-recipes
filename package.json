@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "netlify dev --offline --no-open --port 8888",
+    "dev": "wrangler pages dev --port 8788",
+    "dev:netlify": "netlify dev --offline --no-open --port 8888",
     "test": "playwright test",
     "check:live": "node scripts/check-live.mjs"
   },
@@ -12,6 +13,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
-    "netlify-cli": "^27.20.0"
+    "netlify-cli": "^27.20.0",
+    "wrangler": "^4.40.0"
   }
 }
