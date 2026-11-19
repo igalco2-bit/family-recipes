@@ -2,8 +2,9 @@ name = "family-recipes"
 pages_build_output_dir = "public"
 compatibility_date = "2025-09-01"
 
-# On Cloudflare the KV binding is configured in the dashboard (Pages project -> Settings -> Bindings);
-# the id below only matters for local dev.
+# Cloudflare Pages reads this file as the source of truth for bindings.
+# id = the "recipes" KV namespace in the Cloudflare account. Local dev (wrangler pages dev)
+# uses a local simulated store under .wrangler/, never the real data.
 [[kv_namespaces]]
 binding = "RECIPES"
-id = "local-recipes"
+id = "dcb60a0b9fef4c16ad60177895bbe549"
