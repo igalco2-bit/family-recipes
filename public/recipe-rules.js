@@ -217,6 +217,7 @@
     const others = allRecipes.filter(o => o && o.id !== recipe.id);
 
     if (!name) add('error', 'name-empty', 'חסר שם למתכון');
+    if (!recipe.category || !String(recipe.category).trim()) add('error', 'category-empty', 'יש לבחור קטגוריה');
     if (video && !isHttp(video)) add('error', 'bad-link', 'הקישור למתכון חייב להתחיל ב-http:// או https://');
     if (image && !isHttp(image)) add('error', 'bad-image', 'קישור התמונה חייב להתחיל ב-http:// או https://');
 

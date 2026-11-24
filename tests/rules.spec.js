@@ -106,6 +106,13 @@ test.describe('recipe rules', () => {
       expect(issues).toContainEqual(expect.objectContaining({ level: 'error', code: 'name-empty' }));
     });
 
+    test('missing category is an error, present category is not', async ({ page }) => {
+      const none = await check(page, makeRecipe({ category: '' }));
+      expect(none).toContainEqual(expect.objectContaining({ level: 'error', code: 'category-empty' }));
+      const some = await check(page, makeRecipe({ category: 'סלטים' }));
+      expect(some.map((i) => i.code)).not.toContain('category-empty');
+    });
+
     test('javascript: link is an error', async ({ page }) => {
       const issues = await check(page, makeRecipe({ videoUrl: 'javascript:alert(1)' }));
       expect(issues).toContainEqual(expect.objectContaining({ level: 'error', code: 'bad-link' }));

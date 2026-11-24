@@ -247,8 +247,9 @@ test.describe('save flow with checks', () => {
     await expect(page.locator('#recipeModal')).toBeVisible();
   }
 
-  async function fillForm(page, { name, ingredients = '', instructions = '', videoUrl }) {
+  async function fillForm(page, { name, ingredients = '', instructions = '', videoUrl, category = 'קינוחים' }) {
     await page.locator('#name').fill(name);
+    if (category) await page.locator('#category').selectOption(category);
     await page.locator('#ingredients').fill(ingredients);
     await page.locator('#instructions').fill(instructions);
     if (videoUrl !== undefined) {
@@ -331,5 +332,35 @@ test.describe('save flow with checks', () => {
 
     await expect(page.getByTestId('check-panel')).toBeVisible();
     await expect(page.locator('[data-testid="check-issue"][data-code="duplicate-link"]')).toBeVisible();
+  });
+
+  test('add modal starts with empty required category', async ({ page }) => {
+    await setup(page, [existing]);
+    await openForm(page);
+    await expect(page.locator('#category')).toHaveValue('');
+    await expect(page.locator('#category')).toHaveAttribute('required', '');
+  });
+
+  test('missing category is an error, then saves once chosen', async ({ page }) => {
+    await setup(page, [existing]);
+    await openForm(page);
+    await fillForm(page, { name: 'מתכון ללא קטגוריה', ingredients: '2 כוסות קמח\n1 ביצה', instructions: 'מערבבים\nאופים', category: '' });
+    await submit(page);
+
+    await expect(page.locator('[data-testid="check-issue"][data-code="category-empty"]')).toBeVisible();
+    await expect(page.getByTestId('check-save-anyway')).toHaveCount(0);
+    await expect(page.locator('#recipeModal')).toBeVisible();
+    expect(await savedNames(page)).not.toContain('מתכון ללא קטגוריה');
+
+    await page.locator('#category').selectOption('סלטים');
+    await submit(page);
+    await expect(page.locator('#recipeModal')).toBeHidden();
+    await expect.poll(() => savedNames(page)).toContain('מתכון ללא קטגוריה');
+  });
+
+  test('editing keeps the recipe category', async ({ page }) => {
+    await setup(page, [existing]);
+    await page.evaluate(() => openEditModal('10'));
+    await expect(page.locator('#category')).toHaveValue('עיקריות');
   });
 });
