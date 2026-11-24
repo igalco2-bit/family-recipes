@@ -166,4 +166,47 @@ test.describe('recipe rules', () => {
       expect(JSON.stringify(junk.lines)).toContain('בחר הכל');
     });
   });
+  test.describe('addIngredientGroups', () => {
+    const CAKE = ["¾ כוס אבקת שוקולית", "¼ כוס אבקת קקאו", "1 כפית אבקת נס קפה", "2 כוסות מים, מתוכם ½ כוס מים רותחים ו- ½1 כוסות מים פושרים", "½1 כוסות סוכר", "1 כוס שמן", "2 ביצים גדולות (או 3 קטנות)", "1 כפית תמצית ווניל", "2 כוסות קמח", "1 שקית אבקת אפייה", "½ כפית מלח"];
+    const COAT = ['150 גרם שוקולד מריר שבור לקוביות', '150 מ"ל (כ- ½ כוס) שמנת מתוקה או קרם קוקוס'];
+    const run = (page, ing, pl) => page.evaluate(([i, p]) => RecipeRules.addIngredientGroups(i, p), [ing, pl]);
+
+    test('restores the group heading from page lines', async ({ page }) => {
+      const ing = [...CAKE, ...COAT];
+      const pl = ['תפריט', 'מתכון לעוגת שוקולד', 'רכיבים', ...CAKE, 'לציפוי:', COAT[0], '150 מ"ל (כ- ½ כוס) שמנת מתוקה או קרם קוקוס', 'אופן הכנה', 'ערבבו הכל'];
+      const res = await run(page, ing, pl);
+      expect(res).toHaveLength(14);
+      expect(res[11]).toBe('לציפוי:');
+      expect(res[12]).toBe(COAT[0]);
+    });
+
+    test('unchanged when an ingredient is missing from the page', async ({ page }) => {
+      const ing = [...CAKE, 'מרכיב שלא קיים בדף בכלל'];
+      const res = await run(page, ing, ['רכיבים', ...CAKE, 'לציפוי:']);
+      expect(res).toEqual(ing);
+    });
+
+    test('unchanged when the gap is larger than 3 lines', async ({ page }) => {
+      const ing = ['2 כוסות קמח', '1 כוס סוכר'];
+      const res = await run(page, ing, ['2 כוסות קמח', 'א', 'ב', 'ג', 'ד', 'לציפוי:', '1 כוס סוכר']);
+      expect(res).toEqual(ing);
+    });
+
+    test('does not insert non-heading lines from a gap', async ({ page }) => {
+      const ing = ['2 כוסות קמח', '1 כוס סוכר'];
+      const res = await run(page, ing, ['2 כוסות קמח', 'פרסומת', '1 כוס סוכר']);
+      expect(res).toEqual(ing);
+    });
+  });
+
+  test('cleanInstructions drops a closing בתאבון line', async ({ page }) => {
+    const res = await page.evaluate(() => RecipeRules.cleanInstructions(['1. מערבבים', '2. אופים', 'בתאבון!'].join('\n'), 'עוגה'));
+    expect(res.text).toBe(['1. מערבבים', '2. אופים'].join('\n'));
+    expect(res.removed).toContain('בתאבון!');
+  });
+
+  test('cleanInstructions drops a numbered closing line ("16. בתאבון")', async ({ page }) => {
+    const res = await page.evaluate(() => RecipeRules.cleanInstructions(['15. לתת לעוגה להצטנן ולאכול.', '16. בתאבון'].join('\n'), 'עוגה'));
+    expect(res.text).toBe('15. לתת לעוגה להצטנן ולאכול.');
+  });
 });

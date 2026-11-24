@@ -100,7 +100,7 @@
         </div>
 
     </main>
-    <p class="no-print text-center text-xs text-stone-400 pb-6">גרסה 12.13 – בדיקות תקינות ומצב בישול חכם</p>
+    <p class="no-print text-center text-xs text-stone-400 pb-6">גרסה 12.14 – שמירת כותרות קבוצות רכיבים בחילוץ</p>
 
     <!-- מודאל הוספת / עריכת מתכון -->
     <div id="recipeModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-backdrop overflow-y-auto">
@@ -739,15 +739,18 @@
 
         // גיבוי אחרון לאתרי חדשות/בלוגים: אין תגיות מתכון, אז מחפשים בטקסט את הכותרות
         // "המצרכים" ו"אופן ההכנה" ולוקחים את מה שמתחתן
-        function scrapeFromText(doc) {
+        function collectPageLines(doc) {
             const lines = [];
             doc.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,div,td').forEach(el => {
                 if (el.querySelector('h1,h2,h3,h4,h5,h6,p,li,div,ul,ol,table,section,article')) return; // רק אלמנטים "עלים"
                 if (el.closest('nav,footer,aside')) return;
                 cleanText(el.innerHTML).split('\n').forEach(t => { t = t.trim(); if (t) lines.push(t); });
             });
+            return lines;
+        }
 
-            return scrapeLines(lines);
+        function scrapeFromText(doc) {
+            return scrapeLines(collectPageLines(doc));
         }
 
         function scrapeLines(lines) {
@@ -874,6 +877,9 @@
                 if (recipe) {
                     name = cleanText(recipe.name);
                     ingredients = listFromSchema(recipe.recipeIngredient || recipe.ingredients);
+                    if (ingredients.length >= 2) {
+                        try { ingredients = RecipeRules.addIngredientGroups(ingredients, collectPageLines(doc)); } catch (e) { }
+                    }
                     steps = flattenSteps(recipe.recipeInstructions);
                 }
 

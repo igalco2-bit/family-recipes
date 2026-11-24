@@ -23,6 +23,9 @@
   const STEP_VERB_RE = /^(?:מחממים|מערבבים|אופים|מוסיפים|מכניסים|יוצקים|מבשלים|מטגנים|קוצצים|שמים|מניחים|חותכים)(?=\s|$)/;
   const SHARE_HOSTS = ['share.google', 'bit.ly', 'tinyurl.com', 'lnkd.in', 't.co', 'goo.gl', 'did.li'];
 
+  // ברכת סיום, גם אחרי מספור שלבים ("16. בתאבון")
+  const CLOSING_RE = /^(?:\d+\s*[.)]\s*)?(?:בתאבון|בתיאבון|בהצלחה)$/;
+
   const norm = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
   const stripPrefix = t => t.replace(PREFIX_RE, '').trim();
   const head = t => t.replace(/^[^א-תA-Za-z]+/, '');
@@ -115,6 +118,51 @@
     return parseFull(text, recipeName).map(e => ({ kind: e.kind, text: e.text }));
   }
 
+  // ---------- כותרות קבוצות רכיבים ----------
+  // JSON-LD מאבד לעיתים קרובות את כותרות הקבוצות ("לציפוי:"); משחזרים אותן משורות הדף הגלויות.
+  const cmpNorm = s => String(s == null ? '' : s).replace(/[\s ]+/g, ' ').replace(/["״”“'׳’]/g, '').trim().toLowerCase();
+
+  function addIngredientGroups(ingredients, pageLines) {
+    if (!Array.isArray(ingredients) || ingredients.length < 2 || !Array.isArray(pageLines)) return ingredients;
+    const pl = pageLines.map(cmpNorm);
+    const idx = [];
+    let from = 0;
+    for (const ing of ingredients) {
+      const n = cmpNorm(ing);
+      if (!n) return ingredients;
+      let found = -1;
+      for (let i = from; i < pl.length; i++) {
+        if (pl[i] === n || (n.length >= 8 && pl[i].indexOf(n) !== -1)) { found = i; break; }
+      }
+      if (found < 0) return ingredients;
+      idx.push(found);
+      from = found + 1;
+    }
+    const seen = new Set(ingredients.map(cmpNorm));
+    const out = [ingredients[0]];
+    for (let k = 1; k < ingredients.length; k++) {
+      const a = idx[k - 1], b = idx[k];
+      if (b - a - 1 > 0 && b - a - 1 <= 3) {
+        for (let i = a + 1; i < b; i++) {
+          const raw = String(pageLines[i] == null ? '' : pageLines[i]).replace(/[\s ]+/g, ' ').trim();
+          if (!raw) continue;
+          const c = classifyLine(raw);
+          let text = null;
+          if (c.kind === 'heading') text = c.text;
+          else if (/[:：]$/.test(raw) && c.kind !== 'junk') text = raw.replace(/[:：]+$/, '').trim();
+          if (!text) continue;
+          const label = text.replace(/\s*[:：]+\s*$/, '') + ':';
+          const key = cmpNorm(label);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(label);
+        }
+      }
+      out.push(ingredients[k]);
+    }
+    return out;
+  }
+
   // ---------- ניקוי הוראות ----------
   function cleanInstructions(text, recipeName) {
     const name = norm(recipeName);
@@ -128,7 +176,7 @@
     const kept = [];
     lines.forEach(l => {
       if (!l) return;
-      if (isCommonJunk(l) || sameAsName(l, name) || /^הפעל טיימר/.test(l)) removed.push(l);
+      if (isCommonJunk(l) || CLOSING_RE.test(l.replace(/[\s\p{P}\p{S}]+$/u, '')) || sameAsName(l, name) || /^הפעל טיימר/.test(l)) removed.push(l);
       else kept.push(l);
     });
     return { text: kept.join('\n'), removed };
@@ -195,7 +243,7 @@
     return issues;
   }
 
-  const RecipeRules = { classifyLine, parseIngredients, cleanInstructions, cleanRecipe, checkRecipe, isInsHead };
+  const RecipeRules = { classifyLine, parseIngredients, cleanInstructions, cleanRecipe, checkRecipe, isInsHead, addIngredientGroups };
   if (typeof module !== 'undefined' && module.exports) module.exports = RecipeRules;
   root.RecipeRules = RecipeRules;
 })(typeof window !== 'undefined' ? window : globalThis);
